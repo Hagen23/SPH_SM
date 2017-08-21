@@ -165,6 +165,12 @@ void keys (unsigned char key, int x, int y)
 			delete sph;
             exit(0);
 			break;
+		case 'q':
+			cout << "Qm: " << sph->flip_quadratic() << endl;
+			break;
+		case 'v':
+			cout << "Vc: " << sph->flip_volume() << endl;
+			break;
 		case 32:
 			simulate = !simulate;
 			cout << "Streaming: " << simulate << endl;
@@ -209,7 +215,7 @@ void init(void)
 	float kernel = 0.04f;
 
 	for(float k = World_Size.z * 0.3f; k < World_Size.z * 0.7f; k += kernel * 0.6f)
-	for(float j = World_Size.y * 0.3f; j < World_Size.y * 0.7f; j += kernel * 0.6f)
+	for(float j = World_Size.y * 0.0f; j < World_Size.y * 0.4f; j += kernel * 0.6f)
 	for(float i = World_Size.x * 0.3f; i < World_Size.x * 0.7f; i += kernel * 0.6f)
 		positions.push_back(m3Vector(i, j, k));
 

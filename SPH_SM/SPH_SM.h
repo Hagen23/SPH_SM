@@ -42,6 +42,7 @@ class SPH_SM
 		m3Real 		Time_Delta;			
 		m3Real 		Wall_Hit;				// To manage collisions with the environment.
 		m3Real 		mu;						// Viscosity.
+		m3Real		velocity_mixing;		// Velocity mixing parameter for the intermediate velocity.
 
 		// Smoothing kernel constants for SPH
 		m3Real 		Poly6_constant, Spiky_constant, Visco_Constant;
@@ -102,6 +103,9 @@ class SPH_SM
 		inline m3Vector Get_World_Size() { return World_Size; }
 		inline Particle* Get_Paticles()	 { return Particles; }
 		inline Cell* Get_Cells()		 { return Cells; }
+
+		inline bool flip_quadratic()	{ quadraticMatch = !quadraticMatch; return quadraticMatch; }
+		inline bool flip_volume()		{ volumeConservation = !volumeConservation; return volumeConservation; }
 };
 
 

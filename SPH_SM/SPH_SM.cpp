@@ -28,15 +28,16 @@ SPH_SM::SPH_SM()
 	Number_Cells = (int)Grid_Size.x * (int)Grid_Size.y * (int)Grid_Size.z;
 
 	Gravity.set(0.0f, -9.8f, 0.0f);
-	K = 0.1f;
+	K = 0.08f;
 	Stand_Density = 5000.0f;
 	max_vel = m3Vector(3.0f, 3.0f, 3.0f);
+	velocity_mixing = 1.0;
 
 	/// Time step is calculated as in 2016 - Divergence-Free SPH for Incompressible and Viscous Fluids.
 	/// Then we adapt the time step size according to the Courant-Friedrich-Levy (CFL) condition [6] ∆t ≤ 0.4 * d / (||vmax||)
 	Time_Delta = 0.4 * kernel / sqrt(max_vel.magnitudeSquared());
-	Wall_Hit = -1.0f;
-	mu = 100.0f;
+	Wall_Hit = -0.05f;
+	mu = 150.0f;
 
 	Particles = new Particle[Max_Number_Paticles];
 	Cells = new Cell[Number_Cells];
@@ -48,8 +49,8 @@ SPH_SM::SPH_SM()
 	bounds.min.zero();
 	bounds.max.set(1.0f, 1.0f, 1.0f);
 
-	alpha = 0.9f;
-	beta = 0.3f;
+	alpha = 0.5f;
+	beta = 0.2f;
 
 	quadraticMatch = true;
 	volumeConservation = true;
@@ -176,7 +177,7 @@ void SPH_SM::apply_external_forces(m3Vector* forcesArray = NULL, int* indexArray
 	{
 		if (Particles[i].mFixed) continue;
 		Particles[i].predicted_vel = Particles[i].vel + (Gravity * Time_Delta) / Particles[i].mass;
-		Particles[i].mGoalPos = Particles[i].mOriginalPos;
+		// Particles[i].mGoalPos = Particles[i].mOriginalPos;
 	}
 }
 
@@ -429,7 +430,7 @@ void SPH_SM::Compute_Density_SingPressure()
 		}
 
 		p->dens += p->mass * Poly6(0.0f);
-		
+
 		/// Calculates the pressure, Eq.12
 		p->pres = K * (p->dens - Stand_Density);
 	}
@@ -473,7 +474,8 @@ void SPH_SM::Compute_Force()
 					p->acc -= Distance * Force_pressure / dis;
 
 					/// Calculates the relative velocity (vj - vi), and then multiplies it to the mu, volume, and viscosity kernel. Eq.14
-					m3Vector RelativeVel = np->corrected_vel - p->corrected_vel;
+					// m3Vector RelativeVel = np->corrected_vel - p->corrected_vel;
+					m3Vector RelativeVel = np->inter_vel - p->inter_vel;
 					float Force_viscosity = Volume * mu * Visco(dis);
 					p->acc += RelativeVel * Force_viscosity;
 				}
@@ -493,7 +495,7 @@ void SPH_SM::Update_Pos_Vel()
 	for(int i=0; i < Number_Particles; i++)
 	{
 		p = &Particles[i];
-		p->vel = p->corrected_vel + (p->acc*Time_Delta / p->mass);
+		p->vel = p->inter_vel + (p->acc*Time_Delta / p->mass);
 		p->pos = p->pos + (p->vel*Time_Delta);
 
 		if(p->pos.x < 0.0f)
@@ -547,10 +549,45 @@ void SPH_SM::calculate_corrected_velocity()
 	}
 }
 
+void SPH_SM::calculate_intermediate_velocity()
+{
+	Particle *p;
+	m3Vector CellPos;
+	m3Vector NeighborPos;
+	int hash;
+
+	for(int k = 0; k < Number_Particles; k++)
+	{
+		p = &Particles[k];
+		CellPos = Calculate_Cell_Position(p->pos);
+		m3Vector partial_velocity(0.0f, 0.0f, 0.0f);
+
+		for(int k = -1; k <= 1; k++)
+		for(int j = -1; j <= 1; j++)
+		for(int i = -1; i <= 1; i++)
+		{
+			NeighborPos = CellPos + m3Vector(i, j, k);
+			hash = Calculate_Cell_Hash(NeighborPos);
+			if(hash == -1)
+				continue;
+
+			for(Particle* np : Cells[hash].contained_particles)
+			{
+				m3Vector Distance;
+				Distance = p->pos - np->pos;
+				float dis2 = (float)Distance.magnitudeSquared();
+				partial_velocity += (np->corrected_vel - p->corrected_vel) * Poly6(dis2) * (np->mass / np->dens);
+			}
+		}
+		p->inter_vel = p->corrected_vel + partial_velocity * velocity_mixing;
+	}
+}
+
 void SPH_SM::compute_SPH_SM()
 {
 	Find_neighbors();
 	calculate_corrected_velocity();
+	calculate_intermediate_velocity();
 	Compute_Density_SingPressure();
 	Compute_Force();
 	Update_Pos_Vel();
